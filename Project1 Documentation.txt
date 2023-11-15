@@ -1,0 +1,498 @@
+#Jenkins as a CICD tool and deploying our application on Docker Contaier
+
+NOTE:
+Forking a Git repository is a common practice when you want to contribute to someone else's project or create your own version of it. Here are the general steps:
+
+Navigate to the Repository:
+Go to the GitHub (or other Git hosting service) page of the repository you want to fork. For example, if the repository is at https://github.com/example/repo, then go to https://github.com/example/repo.
+
+Fork the Repository:
+In the top right corner of the repository page, you'll see a "Fork" button. Click on it. This action creates a copy (fork) of the repository in your GitHub account
+
+
+NOTE:make changes in the git hub code "open make file from git code replace "image repo with ur docker hub acc name "
+
+#Step 1 — Create an Ubuntu T2 Large Instance
+
+			1. Sign in to the AWS Management Console:
+			
+				Go to AWS Management Console.
+				Sign in with your AWS account credentials.
+			
+			2. Navigate to EC2:
+			
+				In the AWS Management Console, navigate to the EC2 service.
+			
+			3. Launch an Instance:
+			
+				Click on the "Instances" link in the left-hand navigation pane.
+				Click the "Launch Instance" button.
+
+			4. Choose an Amazon Machine Image (AMI):
+			
+				In the "Choose an Amazon Machine Image (AMI)" step, select an Ubuntu AMI. You might choose a version like "Ubuntu Server 20.04 LTS" or a newer version.
+			
+			5. Choose an Instance Type:
+			
+				In the "Choose an Instance Type" step, select the "t2.large" instance type.
+			
+			6. Configure Instance Details:
+
+				In the "Configure Instance Details" step, you can leave most of the settings as default. Make sure to choose the desired network and subnet.
+				Optionally, you can configure additional settings like IAM role, user data, etc.
+				
+				Add Storage:
+				In the "Add Storage" step, configure the size of the root volume. The default size should be sufficient for most cases.
+				
+				Add Tags:
+				In the "Add Tags" step, you can add tags to your instance for better organization. This step is optional.
+				
+				Configure Security Group:
+				In the "Configure Security Group" step, configure the security group settings. Allow at least SSH (port 22) for connecting to the instance. You can also add rules for HTTP, HTTPS, or any other ports you need.
+				
+				Review and Launch:
+				Review your instance configuration and click the "Launch" button.
+				
+				Create a Key Pair:
+				In the "Select an existing key pair or create a new key pair" dialog, choose "Create a new key pair."
+				Enter a name for the key pair (e.g., "MyKeyPair").
+				Download the key pair (.pem file) and keep it in a secure location. This key pair is required to connect to your instance securely.
+				
+				Launch Instances:
+				Click the "Launch Instances" button.
+				
+				View Instances:
+				After launching the instance, go back to the "Instances" page in the EC2 dashboard to view the status of your newly created instance.
+				
+			7. Connect to the Instance:
+			
+				Use an SSH client to connect to your instance using the downloaded key pair. The SSH command will look something like this:
+				ssh -i "Server_Key.pem" ubuntu@ec2-34-224-5-226.compute-1.amazonaws.com (Change Public IP)
+
+#Step 2 — Install Jenkins, Docker and Trivy. Create a Sonarqube Container using Docker in Jenkins.
+			
+			#Install Jenkins
+			
+			sudo apt-get update
+			curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee \
+				/usr/share/keyrings/jenkins-keyring.asc > /dev/null
+			echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+				https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+				/etc/apt/sources.list.d/jenkins.list > /dev/null
+
+			sudo apt-get update
+			sudo apt-get install fontconfig openjdk-11-jre
+			sudo apt-get install jenkins
+
+			sudo systemctl enable jenkins
+			sudo systemctl start jenkins
+			sudo systemctl status jenkins
+			
+			#Access Jenkins using Using http://<Public IP>:8080
+			
+			#Install Docker
+			
+			sudo apt-get update
+			sudo apt-get install docker.io -y
+			sudo usermod -aG docker $USER
+			sudo chmod 777 /var/run/docker.sock 
+			sudo docker ps
+			
+			#Create a sonarqube container (Check 9000 port is added in the security group)
+			
+			docker run -d --name sonar -p 9000:9000 sonarqube:lts-community
+			
+			#Install Trivy
+			
+			sudo apt-get install wget apt-transport-https gnupg lsb-release
+			wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+			echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+			sudo apt-get update
+			sudo apt-get install trivy -y
+
+#Step 3 — Install Plugins like JDK, Sonarqube Scanner, Maven, OWASP Dependency Check.
+
+			#Install Plugins in Jenkins: (Note : install all plugins without restart)
+			
+			1. JDK (Java Development Kit) Plugin:
+			
+				Navigate to your Jenkins dashboard.
+				Click on "Manage Jenkins" in the left-hand sidebar.
+				Select "Manage Plugins."
+				Go to the "Available" tab.
+				Search for "JDK Tool Plugin."
+				Check the box next to "JDK Tool Plugin" and click "Install without restart."
+			
+			2. SonarQube Scanner Plugin:
+			
+				In the same "Available" tab in the "Manage Plugins" section.
+				Search for "SonarQube Scanner."
+				Check the box next to "SonarQube Scanner for Jenkins" and click "Install without restart."
+			
+			3. Maven Integration Plugin:
+			
+				In the "Available" tab, search for "Maven Integration."
+				Check the box next to "Maven Integration" and click "Install without restart."
+			
+			4. OWASP Dependency-Check Plugin:
+			
+				In the "Available" tab, search for "OWASP Dependency-Check."
+				Check the box next to "OWASP Dependency-Check" and click "Install without restart."
+			
+			5. Docker Plugin:
+			
+				In the "Available" tab, search for "Docker."
+				Check the box next to "Docker" and click "Install without restart."
+				Similarly install these below mentioned plugins :
+				Docker Commons, Docker Pipeline, Docker API, docker-build-step
+			
+			6. Eclipse Temurin Installer Plugin:
+			
+				In the "Available" tab, search for "Eclipse Temurin Installer"
+				Eclipse Temurin Installer
+			
+			#Configure Plugins in Jenkins:
+			
+			1. Configure JDK:
+			
+				Go back to the Jenkins dashboard.
+				Click on "Manage Jenkins" > "Global Tool Configuration."
+				Find the "JDK" section.
+				Click "Add JDK" and provide the necessary information, such as Name and jdk17.
+
+                        2.Configure SonarQube Scanner
+			
+				Go back to the Jenkins dashboard.
+				Click on "Manage Jenkins" > "Global Tool Configuration."
+				Find the "SonarQube Scanner" section.
+				Click "Add SonarQube Scanner" and provide the necessary information, such as Name and sonar-scanner.
+                                install it from maven central      
+                                version 4.8.0.2856
+			
+			
+			
+			3. Configure Maven:
+			
+				In "Manage Jenkins" > "Global Tool Configuration."
+				Find the "Maven" section.
+				Click "Add Maven" and provide the necessary details, such as Name and maven3.
+			
+			4. Configure OWASP Dependency-Check:
+			
+				In "Manage Jenkins" > "Global Tool Configuration."
+				Find the "Dependency-Check" section.
+				Configure the settings according to your requirements.such as name "DC"
+			
+			5. Configure Docker:
+			
+				In "Manage Jenkins" > "Configure System."
+				Find the "Docker" section.
+				Configure the Docker settings, name such as docker.install from git hub "latest version"
+			
+			#Verify Plugin Installations:
+			
+			1. Verify JDK:
+			
+				Create a Jenkins job that requires JDK. Confirm that Jenkins can build the job successfully.
+			
+			2. Verify SonarQube Scanner:
+			
+				Create a Jenkins job with SonarQube Scanner integration.
+				Run the job and verify that SonarQube analysis is performed.
+			
+			3. Verify Maven:
+			
+				Create a Jenkins job that requires Maven.
+				Build the job and ensure that Maven is correctly invoked.
+			
+			4. Verify OWASP Dependency-Check:
+			
+				Create a Jenkins job that integrates OWASP Dependency-Check.
+				Run the job and verify that dependency analysis is performed.
+			
+			5. Verify Docker:
+			
+				Create a Jenkins job that uses Docker.
+				Build the job and verify that Docker commands are executed successfully.
+
+#Step 4 — Create a Pipeline Project in Jenkins using Declarative Pipeline
+
+			1. Log in to Jenkins:
+			
+				Open your web browser and navigate to your Jenkins server's URL.
+				Log in with your credentials.
+			
+			2. Create a New Pipeline Project:
+			
+				From the Jenkins dashboard, click on "New Item" in the left-hand sidebar.
+				Enter a name for your project, select "Pipeline," and click "OK."
+
+#Step 5 - Configure Sonar Server in Manage Jenkins
+
+			1. Grab the Public IP Address of your EC2 Instance:
+			
+				Go to the AWS Management Console.
+				Navigate to the EC2 service.
+				Click on "Instances" in the left-hand navigation pane.
+				Find your EC2 instance and note the "Public IPv4 address."
+			
+			2. Access SonarQube and Generate Token:
+			
+				Open a web browser.
+				Enter the following URL: http://<Public IP>:9000
+				Log in to SonarQube.
+				Click on "Administration" in the top menu.
+				Navigate to "Security" > "Users" > Click on your user.
+				Click on "Tokens" and then "Generate Token."
+				Give it a name, click "Generate," and copy the generated token.
+				Click on "Update Token."
+			
+			3. Add Token as a Secret Text in Jenkins:
+			
+				Go to Jenkins Dashboard.
+				Click on "Manage Jenkins" > "Credentials."
+				Click on "(global)" > "Add Credentials."
+				Choose "Secret text" as the kind.
+				Paste the copied token into the "ID" field.
+				Optionally, provide an secret as password  and description as sonar-token.
+				Click "OK" to save.
+			
+			4. Configure SonarQube in Jenkins:
+			
+				Go to Jenkins Dashboard.
+				Click on "Manage Jenkins" > "Configure System."
+				Scroll down to the "SonarQube servers" section.
+				Click on "Add SonarQube."
+				Provide a Name for the SonarQube server as "sonar"
+				Enter the SonarQube server URL (http://<Public IP>:9000).
+				Add the previously created token as the "Server authentication token."
+				Click on "Save" or "Apply and Save."
+			
+			
+			
+#Step 6 - Lets goto our Pipeline and add Sonar-qube Stage in our Pipeline Script
+
+			pipeline {
+				agent any
+				
+				tools {
+					jdk 'jdk17'
+					maven 'maven3'
+				}
+				
+				environment {
+					SCANNER_HOME=tool 'sonar-scanner'
+				}
+
+				stages {
+					stage('Git Checkout') {
+						steps {
+							git branch: 'main', url: 'https://github.com/SushantOps/Python-Webapp.git'
+						}
+					}
+					
+					stage("OWASP Dependency"){
+						steps{
+							dependencyCheck additionalArguments: '--scan ./ ', odcInstallation: 'DC'
+							dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+						}
+					}
+					
+					stage("Trivy FS "){
+						steps{
+							sh "trivy fs ."
+						}
+					} 
+					
+					stage("Sonarqube Analysis"){
+						steps{
+							 withSonarQubeEnv('sonar') {
+								sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Python-webapp \
+								-Dsonar.projectKey=Python-webapp \
+								-Dsonar.login=squ_3c34504b6ae9d2d4e2b10528ec2813833e330156 '''
+								
+							 }
+						}
+					}
+					
+				}
+			}
+			
+			Click on Build now to see the stage view.
+
+			To see the report, you can goto Sonarqube Server and goto Projects.
+
+			You can see the report has been generated and the status shows as passed. You can see that there are 346 lines. To see detailed report, you can go to issues.
+
+#Step 7 - Install make package in the Ubuntu T2 Large Instance virtual machine.
+
+			sudo apt install make
+
+			#To check version install or not
+			
+			make -v
+
+#Step 8 - Docker Image Build and Push
+
+			1. Add DockerHub Credentials in Jenkins:
+			
+				Go to Jenkins Dashboard.
+
+				Click on "Manage Jenkins" > "Manage Credentials."
+
+				Click on "(global)" > "(unrestricted)" > "Add Credentials."
+
+				Choose "Secret text" as the kind.
+
+				Enter your DockerHub username in the "Secret" field.
+
+				Enter your DockerHub password in the "ID" field.
+
+				Optionally, provide an ID and descriptioN BOTH ARE SAME "docker-cred"
+
+				Click "OK" to save.
+
+			2. Update Jenkinsfile to Use DockerHub Credentials:
+			
+				Update your Jenkinsfile to include the DockerHub credentials.
+			
+				Replace 'dockerhub-credentials-id' with the ID you provided when adding DockerHub credentials.
+				Replace your-dockerhub-username/your-image-name with your DockerHub username and the desired image name.
+
+			3. Save and Trigger the Pipeline:
+			
+				Save the Jenkinsfile.
+				Trigger a build for your Jenkins pipeline.
+
+			4. View Pipeline Execution:
+				
+				After the pipeline execution is complete, go to the Jenkins dashboard.
+				Click on the build number to view the pipeline execution.
+				Explore the console output for Docker build and push steps.
+
+			5. Verify on DockerHub:
+			
+			Log in to DockerHub.
+			You should see a new image created with the specified name and tag.
+			Add build and tag stage to your pipeline syntax
+			
+			Step 8 - Deploy image using Docker
+
+			Add deploy stage to your pipeline syntax
+			
+			pipeline {
+    agent any
+    
+    tools {
+        jdk 'jdk17'
+    }
+    
+    environment {
+        SCANNER_HOME=tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/chintu4494/Python-Webapp.git'
+            }
+        }
+        
+        stage("OWASP Dependency"){
+            steps{
+                dependencyCheck additionalArguments: '--scan ./ ', odcInstallation: 'DC'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        
+        stage("Trivy FS "){
+            steps{
+                sh "trivy fs ."
+            }
+        } 
+        
+        stage(" Sonarqube Analysis "){
+            steps{
+                 withSonarQubeEnv('sonar') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Python-webapp \
+                    -Dsonar.projectKey=Python-webapp \
+                    -Dsonar.login=squ_4721b14342bc8640d540d7a1c880345ce8220aa3'''
+                    
+                 }
+            }
+        } 
+        
+        stage("Docker Build and Tag  "){
+            steps{
+                script{
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                    sh "make image"
+                   }
+                }
+            }
+        } 
+        
+         stage("Trivy Image Scan "){
+            steps{
+                sh "trivy image chintu4494/python-webapp "
+            }
+        } 
+        stage("Docker Push"){
+            steps{
+                script{
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                    sh "make push"
+                   }
+                }
+            }
+        } 
+        
+        stage("Deploy to container"){
+            steps{
+                script{
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                    sh "docker run -d -p 5000:5000 chintu4494/python-webapp:latest "
+                   }
+                }
+            }
+        } 
+    }
+}
+
+
+NOTE:ONCE YOU ACCESS APPLICATION IF YOU STOP THE INSTANCE FOR WHILE THEN START INSTANCE YOU CAN'T GET ACCESS 
+1)YOU NEED TO RUN docker community sonarqube server with command "docker start container id"
+
+Step 10 - Terminate the AWS EC2 Instance
+
+			1. Sign in to AWS Console:
+				Open your web browser and navigate to the AWS Management Console.
+				Sign in with your AWS account credentials.
+			
+			2. Navigate to EC2 Dashboard:
+				In the AWS Management Console, navigate to the EC2 service by clicking on "Services" in the top-left corner and selecting "EC2" under the "Compute" section.
+			
+			3. Locate Your Instance:
+				In the EC2 Dashboard, click on "Instances" in the left-hand navigation pane.
+				You'll see a list of your EC2 instances. Locate the T2 Large instance that you want to terminate.
+			
+			4. Select the Instance:
+				Click on the checkbox next to the instance you want to terminate to select it.
+			
+			5. Terminate the Instance:
+				With the instance selected, click on the "Actions" button above the list of instances.
+				From the drop-down menu, hover over "Instance State" and then click on "Terminate."
+			
+			6. Confirm Termination:
+				A confirmation dialog will appear. Review the information carefully.
+				Type "Yes, Terminate" in the confirmation box.
+				Click the "Yes, Terminate" button to confirm.
+			
+			7. Monitor Termination:
+				The instance will enter the "shutting-down" state, indicating that the termination process has started.
+				It may take a few moments for the instance to be fully terminated.
+			
+			8. Verify Termination:
+				Once the instance is terminated, it will no longer appear in the list of instances.
+				You can also check the instance state to ensure it is terminated.
+
